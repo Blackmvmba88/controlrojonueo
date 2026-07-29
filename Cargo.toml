@@ -1,0 +1,9 @@
+[package]
+name = "controlrojonueo"
+version = "0.1.0"
+edition = "2021"
+description = "BlackMamba Bluetooth/USB controller input bridge"
+license = "MIT"
+
+[dependencies]
+gilrs = "0.11"
