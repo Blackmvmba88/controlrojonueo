@@ -1,6 +1,6 @@
 use std::{
     env,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
     time::{Duration, Instant},
 };
@@ -186,7 +186,7 @@ mod tests {
     #[test]
     fn marker_path_has_safe_default() {
         if env::var_os("BLACKMAMBA_GAME_ACTIVE_FILE").is_none() {
-            assert_eq!(game_marker(), Path::new("/tmp/blackmamba-game-active"));
+            assert_eq!(game_marker(), std::path::Path::new("/tmp/blackmamba-game-active"));
         }
     }
 }
