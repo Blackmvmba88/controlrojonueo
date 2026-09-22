@@ -123,18 +123,18 @@ fn best_connected(gilrs: &Gilrs) -> Option<GamepadId> {
 }
 
 fn transport_for(uuid: [u8; 16], power: PowerInfo) -> Transport {
-    // gilrs UUIDs follow SDL's joystick GUID convention. Depending on the
-    // platform/backend, the leading bus code can expose USB/Bluetooth.
-    // We treat this only as a transport hint and fall back to power state.
-    match u16::from_le_bytes([uuid[0], uuid[1]]) {
-        0x0001 | 0x0003 => Transport::Wired,
-        0x0002 | 0x0005 => Transport::Wireless,
-        _ => match power {
-            PowerInfo::Wired => Transport::Wired,
-            PowerInfo::Discharging(_) | PowerInfo::Charging(_) | PowerInfo::Charged => {
-                Transport::Wireless
-            }
-            PowerInfo::Unknown => Transport::Unknown,
+    // Power state is the strongest signal exposed by gilrs. Only when macOS
+    // reports Unknown do we use the SDL-compatible UUID/GUID bus bytes as a
+    // best-effort transport hint.
+    match power {
+        PowerInfo::Wired => Transport::Wired,
+        PowerInfo::Discharging(_) | PowerInfo::Charging(_) | PowerInfo::Charged => {
+            Transport::Wireless
+        }
+        PowerInfo::Unknown => match u16::from_le_bytes([uuid[0], uuid[1]]) {
+            0x0001 | 0x0003 => Transport::Wired,
+            0x0002 | 0x0005 => Transport::Wireless,
+            _ => Transport::Unknown,
         },
     }
 }
