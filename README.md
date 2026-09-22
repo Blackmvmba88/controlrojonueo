@@ -118,3 +118,34 @@ GitHub Actions ejecuta ambos comandos en `macos-latest`.
 ## Objetivo
 
 El gamepad deja de ser un periférico exclusivo de videojuegos. Cuando juegas, es gamepad. Cuando sales del juego, se convierte automáticamente en control remoto del escritorio.
+
+
+## Diagnóstico USB GIP directo
+
+Si macOS/gilrs enumera el Xbox pero no emite ningún evento (`map='<none>'`, `source=Driver`), prueba el lector USB directo:
+
+```bash
+git pull
+cargo build --bin gip_probe
+sudo ./target/debug/gip_probe
+```
+
+El probe está fijado inicialmente al Xbox Series X|S detectado en esta máquina:
+
+```text
+VID:PID 045e:0b12
+```
+
+La prueba salta `gilrs`, abre el dispositivo con libusb, reclama la interfaz interrupt IN/OUT, envía el paquete GIP de activación y muestra paquetes crudos. Mueve sticks y pulsa A/B/X/Y.
+
+Resultado esperado si la ruta USB directa funciona:
+
+```text
+USB device opened ...
+Claimed interface ...
+GIP wake packet sent: 5 bytes
+RAW #00001 ...
+RAW #00002 ...
+```
+
+Si los bytes cambian al mover controles, el siguiente paso es convertir esos paquetes GIP en el mismo `DeckAction`/estado de puntero que ya usa el modo escritorio.
