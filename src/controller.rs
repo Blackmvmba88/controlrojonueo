@@ -56,22 +56,30 @@ impl ControllerRouter {
 
         let best = best_connected(gilrs);
 
-        self.active = match (self.active, current_is_connected, best) {
-            (_, false, candidate) => candidate,
-            (Some(current), true, Some(candidate)) => {
-                let current_gamepad = gilrs.gamepad(current);
-                let candidate_gamepad = gilrs.gamepad(candidate);
-                let current_transport =
-                    transport_for(current_gamepad.uuid(), current_gamepad.power_info());
-                let candidate_transport =
-                    transport_for(candidate_gamepad.uuid(), candidate_gamepad.power_info());
-                if candidate_transport.priority() > current_transport.priority() {
-                    Some(candidate)
-                } else {
-                    Some(current)
+        self.active = if !current_is_connected {
+            best
+        } else if let Some(current) = self.active {
+            match best {
+                Some(candidate) => {
+                    let current_gamepad = gilrs.gamepad(current);
+                    let candidate_gamepad = gilrs.gamepad(candidate);
+                    let current_transport =
+                        transport_for(current_gamepad.uuid(), current_gamepad.power_info());
+                    let candidate_transport =
+                        transport_for(candidate_gamepad.uuid(), candidate_gamepad.power_info());
+
+                    if candidate_transport.priority() > current_transport.priority() {
+                        Some(candidate)
+                    } else {
+                        Some(current)
+                    }
                 }
+                None => Some(current),
             }
-            (active, true, None) => active,
+        } else {
+            // Defensive fallback. In normal operation this state cannot happen
+            // because None active implies current_is_connected == false.
+            best
         };
 
         previous != self.active
