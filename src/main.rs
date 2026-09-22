@@ -36,7 +36,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     print_mapping();
-    println!("\nMode: AUTO (GAME when a game/xCloud session is detected; DESKTOP otherwise)");
+    println!("\nMode policy: AUTO (GAME when a game/xCloud session is detected; DESKTOP otherwise)");
+    println!("Current mode: {:?}", mode);
     println!("Transport: AUTO (prefers USB/cable, fails over to Bluetooth/wireless)");
     println!("Override: BLACKMAMBA_FORCE_MODE=desktop|game|auto");
     println!("Listening... Ctrl+C to stop.\n");
