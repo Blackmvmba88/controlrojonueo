@@ -59,10 +59,6 @@ fn forced_mode() -> Option<RuntimeMode> {
 }
 
 fn game_session_active() -> bool {
-    if game_marker().exists() {
-        return true;
-    }
-
     let Some(frontmost) = frontmost_application() else {
         return false;
     };
@@ -82,13 +78,17 @@ fn game_session_active() -> bool {
     if app.contains("google chrome") {
         return browser_url("Google Chrome")
             .map(|url| is_cloud_game_url(&url))
-            .unwrap_or(false);
+            .unwrap_or_else(|| game_marker().exists());
     }
 
     if app == "safari" {
         return browser_url("Safari")
             .map(|url| is_cloud_game_url(&url))
             .unwrap_or(false);
+    }
+
+    if app.contains("chatgpt atlas") {
+        return game_marker().exists();
     }
 
     false
