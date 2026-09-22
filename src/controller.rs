@@ -36,10 +36,6 @@ impl ControllerRouter {
         Self { active }
     }
 
-    pub fn active(&self) -> Option<GamepadId> {
-        self.active
-    }
-
     pub fn accepts(&self, id: GamepadId) -> bool {
         self.active == Some(id)
     }
