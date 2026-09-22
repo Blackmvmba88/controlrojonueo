@@ -1,11 +1,13 @@
 mod actions;
 mod backend;
+mod controller;
 mod input;
 mod mode;
 
 use std::{thread, time::Duration};
 
 use backend::{macos::MacOsBackend, DesktopBackend};
+use controller::ControllerRouter;
 use gilrs::{EventType, Gilrs};
 use input::PointerState;
 use mode::{AutoModeDetector, RuntimeMode};
@@ -14,6 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut gilrs = Gilrs::new().map_err(|err| format!("failed to initialize gamepad input: {err}"))?;
     let mut backend = MacOsBackend::new()?;
     let mut pointer = PointerState::default();
+    let mut controllers = ControllerRouter::bootstrap(&gilrs);
     let mut mode_detector = AutoModeDetector::new();
     let mut mode = mode_detector.update();
 
@@ -21,17 +24,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Searching for Bluetooth/USB gamepads...\n");
 
     let mut found = false;
-    for (id, gamepad) in gilrs.gamepads() {
+    for (id, _gamepad) in gilrs.gamepads() {
         found = true;
-        println!("✓ {:?}: {}", id, gamepad.name());
+        println!("✓ {:?}: {}", id, ControllerRouter::describe(&gilrs, id));
     }
 
     if !found {
-        println!("No controller detected yet. Pair it in macOS Bluetooth settings; this process will keep listening.");
+        println!("No controller detected yet. Connect it by USB or pair it by Bluetooth; this process will keep listening.");
+    } else if let Some(description) = controllers.active_description(&gilrs) {
+        println!("ACTIVE -> {description}");
     }
 
     print_mapping();
     println!("\nMode: AUTO (GAME when a game/xCloud session is detected; DESKTOP otherwise)");
+    println!("Transport: AUTO (prefers USB/cable, fails over to Bluetooth/wireless)");
     println!("Override: BLACKMAMBA_FORCE_MODE=desktop|game|auto");
     println!("Listening... Ctrl+C to stop.\n");
 
@@ -41,16 +47,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(event) = gilrs.next_event() {
             match event.event {
                 EventType::Connected => {
-                    println!("✓ connected: {}", gilrs.gamepad(event.id).name());
+                    println!("✓ connected: {}", ControllerRouter::describe(&gilrs, event.id));
+                    if controllers.reconcile(&gilrs) {
+                        pointer.reset();
+                        if let Some(description) = controllers.active_description(&gilrs) {
+                            println!("⇄ ACTIVE SOURCE -> {description}");
+                        }
+                    }
                 }
                 EventType::Disconnected => {
-                    println!("✗ disconnected: {:?}", event.id);
-                    pointer.reset();
+                    let was_active = controllers.accepts(event.id);
+                    println!("✗ disconnected: {:?}{}", event.id, if was_active { " (active)" } else { "" });
+                    if controllers.reconcile(&gilrs) {
+                        pointer.reset();
+                        match controllers.active_description(&gilrs) {
+                            Some(description) => println!("⇄ FAILOVER -> {description}"),
+                            None => println!("… waiting for USB/Bluetooth controller to reconnect"),
+                        }
+                    }
                 }
-                EventType::AxisChanged(axis, value, _) => {
+                EventType::AxisChanged(axis, value, _) if controllers.accepts(event.id) => {
                     pointer.update_axis(axis, value);
                 }
-                EventType::ButtonPressed(button, _) if mode == RuntimeMode::Desktop => {
+                EventType::ButtonPressed(button, _)
+                    if mode == RuntimeMode::Desktop && controllers.accepts(event.id) =>
+                {
                     if let Some(action) = input::map_button(button) {
                         if let Err(err) = backend.execute(action) {
                             report_once(&mut last_error, err);
