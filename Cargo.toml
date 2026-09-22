@@ -1,6 +1,7 @@
 [package]
 name = "controlrojonueo"
 version = "0.2.0"
+default-run = "controlrojonueo"
 edition = "2021"
 description = "BlackMamba Xbox/Bluetooth/USB controller desktop bridge for macOS"
 license = "MIT"
@@ -8,3 +9,4 @@ license = "MIT"
 [dependencies]
 enigo = "0.6.1"
 gilrs = "0.11.2"
+rusb = { version = "0.9.4", features = ["vendored"] }
