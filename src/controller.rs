@@ -59,8 +59,12 @@ impl ControllerRouter {
         self.active = match (self.active, current_is_connected, best) {
             (_, false, candidate) => candidate,
             (Some(current), true, Some(candidate)) => {
-                let current_transport = transport(gilrs.gamepad(current).power_info());
-                let candidate_transport = transport(gilrs.gamepad(candidate).power_info());
+                let current_gamepad = gilrs.gamepad(current);
+                let candidate_gamepad = gilrs.gamepad(candidate);
+                let current_transport =
+                    transport_for(current_gamepad.uuid(), current_gamepad.power_info());
+                let candidate_transport =
+                    transport_for(candidate_gamepad.uuid(), candidate_gamepad.power_info());
                 if candidate_transport.priority() > current_transport.priority() {
                     Some(candidate)
                 } else {
@@ -84,7 +88,7 @@ impl ControllerRouter {
             .product_id()
             .map(|value| format!("{value:04x}"))
             .unwrap_or_else(|| "????".to_string());
-        let transport = transport(gamepad.power_info());
+        let transport = transport_for(gamepad.uuid(), gamepad.power_info());
 
         format!(
             "{} | os='{}' | {} | VID:PID {}:{} | UUID {}",
@@ -106,17 +110,24 @@ fn best_connected(gilrs: &Gilrs) -> Option<GamepadId> {
     gilrs
         .gamepads()
         .filter(|(_, gamepad)| gamepad.is_connected())
-        .max_by_key(|(_, gamepad)| transport(gamepad.power_info()).priority())
+        .max_by_key(|(_, gamepad)| transport_for(gamepad.uuid(), gamepad.power_info()).priority())
         .map(|(id, _)| id)
 }
 
-fn transport(info: PowerInfo) -> Transport {
-    match info {
-        PowerInfo::Wired => Transport::Wired,
-        PowerInfo::Discharging(_) | PowerInfo::Charging(_) | PowerInfo::Charged => {
-            Transport::Wireless
-        }
-        PowerInfo::Unknown => Transport::Unknown,
+fn transport_for(uuid: [u8; 16], power: PowerInfo) -> Transport {
+    // gilrs UUIDs follow SDL's joystick GUID convention. Depending on the
+    // platform/backend, the leading bus code can expose USB/Bluetooth.
+    // We treat this only as a transport hint and fall back to power state.
+    match u16::from_le_bytes([uuid[0], uuid[1]]) {
+        0x0001 | 0x0003 => Transport::Wired,
+        0x0002 | 0x0005 => Transport::Wireless,
+        _ => match power {
+            PowerInfo::Wired => Transport::Wired,
+            PowerInfo::Discharging(_) | PowerInfo::Charging(_) | PowerInfo::Charged => {
+                Transport::Wireless
+            }
+            PowerInfo::Unknown => Transport::Unknown,
+        },
     }
 }
 
@@ -147,6 +158,20 @@ mod tests {
         assert_eq!(
             format_uuid([0; 16]),
             "00000000-0000-0000-0000-000000000000"
+        );
+    }
+
+    #[test]
+    fn common_guid_bus_hints_distinguish_usb_and_bluetooth() {
+        let mut usb = [0u8; 16];
+        usb[0..2].copy_from_slice(&0x0003u16.to_le_bytes());
+        assert_eq!(transport_for(usb, PowerInfo::Unknown), Transport::Wired);
+
+        let mut bluetooth = [0u8; 16];
+        bluetooth[0..2].copy_from_slice(&0x0005u16.to_le_bytes());
+        assert_eq!(
+            transport_for(bluetooth, PowerInfo::Unknown),
+            Transport::Wireless
         );
     }
 }
