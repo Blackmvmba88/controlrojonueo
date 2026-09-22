@@ -4,7 +4,7 @@ mod controller;
 mod input;
 mod mode;
 
-use std::{thread, time::Duration};
+use std::{thread, time::{Duration, Instant}};
 
 use backend::{macos::MacOsBackend, DesktopBackend};
 use controller::ControllerRouter;
@@ -42,6 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Listening... Ctrl+C to stop.\n");
 
     let mut last_error = String::new();
+    let mut last_axis_log = Instant::now() - Duration::from_secs(1);
 
     loop {
         while let Some(event) = gilrs.next_event() {
@@ -68,14 +69,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 EventType::AxisChanged(axis, value, _) if controllers.accepts(event.id) => {
                     pointer.update_axis(axis, value);
+
+                    if value.abs() >= 0.25 && last_axis_log.elapsed() >= Duration::from_millis(140) {
+                        println!("INPUT axis {:?} = {:+.3} | mode={:?}", axis, value, mode);
+                        last_axis_log = Instant::now();
+                    }
                 }
-                EventType::ButtonPressed(button, _)
-                    if mode == RuntimeMode::Desktop && controllers.accepts(event.id) =>
-                {
-                    if let Some(action) = input::map_button(button) {
-                        if let Err(err) = backend.execute(action) {
-                            report_once(&mut last_error, err);
+                EventType::ButtonChanged(button, value, _) if controllers.accepts(event.id) => {
+                    if value >= 0.45 && last_axis_log.elapsed() >= Duration::from_millis(140) {
+                        println!(
+                            "INPUT analog-button {:?} = {:.3} | mapped={:?} | mode={:?}",
+                            button,
+                            value,
+                            input::map_button(button),
+                            mode
+                        );
+                        last_axis_log = Instant::now();
+                    }
+                }
+                EventType::ButtonPressed(button, _) if controllers.accepts(event.id) => {
+                    let action = input::map_button(button);
+                    println!(
+                        "INPUT button {:?} | mapped={:?} | mode={:?}",
+                        button, action, mode
+                    );
+
+                    if mode != RuntimeMode::Desktop {
+                        println!("ACTION suppressed: GAME mode owns the controller");
+                    } else if let Some(action) = action {
+                        println!("ACTION {:?} -> macOS", action);
+                        match backend.execute(action) {
+                            Ok(()) => println!("ACTION {:?} -> sent", action),
+                            Err(err) => report_once(&mut last_error, err),
                         }
+                    } else {
+                        println!("LEARN unmapped button: {:?}", button);
                     }
                 }
                 _ => {}
