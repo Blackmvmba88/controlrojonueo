@@ -97,15 +97,19 @@ impl ControllerRouter {
             .map(|value| format!("{value:04x}"))
             .unwrap_or_else(|| "????".to_string());
         let transport = transport_for(gamepad.uuid(), gamepad.power_info());
+        let map_name = gamepad.map_name().unwrap_or("<none>");
+        let mapping_source = format!("{:?}", gamepad.mapping_source());
 
         format!(
-            "{} | os='{}' | {} | VID:PID {}:{} | UUID {}",
+            "{} | os='{}' | {} | VID:PID {}:{} | UUID {} | map='{}' | source={}",
             gamepad.name(),
             gamepad.os_name(),
             transport.label(),
             vendor,
             product,
-            uuid
+            uuid,
+            map_name,
+            mapping_source
         )
     }
 
