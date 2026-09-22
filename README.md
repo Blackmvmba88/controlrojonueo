@@ -12,6 +12,29 @@ El modo por defecto es **AUTO**:
 
 BCR puede señalar una sesión de juego creando `/tmp/blackmamba-game-active`. La rama de integración en `Blackmvmba88/switch` hace esto automáticamente al entrar a `play/open` y elimina la señal en `close/work`.
 
+## Redundancia USB + Bluetooth
+
+El controlador se trata como una **fuente lógica única** aunque cambie el transporte:
+
+- Si hay USB/cable disponible, se prefiere por estabilidad.
+- Si el cable desaparece, el runtime espera o hace failover al gamepad inalámbrico disponible sin reiniciarse.
+- Si vuelve el cable, puede promoverlo nuevamente a fuente activa.
+- Si macOS expone USB y Bluetooth al mismo tiempo, sólo una fuente queda activa para evitar clics/ejes duplicados.
+- El log imprime nombre, nombre del SO, VID:PID, UUID y transporte inferido para aprender cómo reporta ese Xbox específico en macOS.
+
+La inferencia usa el GUID/UUID compatible con SDL como pista del bus y `PowerInfo` como respaldo. Si el backend no expone suficiente información, se marca como `unknown` en vez de inventar el transporte.
+
+Prueba de handoff:
+
+```text
+1. Inicia cargo run con el mando conectado por cable.
+2. Comprueba la línea ACTIVE -> ... USB/cable.
+3. Desconecta el cable y deja que Bluetooth reconecte.
+4. Debe aparecer FAILOVER -> ... Bluetooth/wireless.
+5. Conecta de nuevo el cable.
+6. Debe aparecer ACTIVE SOURCE -> ... USB/cable.
+```
+
 ## Mapeo de escritorio
 
 | Xbox | macOS |
