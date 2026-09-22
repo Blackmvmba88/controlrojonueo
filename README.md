@@ -62,13 +62,15 @@ pass-through       Enigo/macOS
 
 ## Detección AUTO
 
-AUTO revisa, en este orden:
+AUTO revisa el **contexto al frente**, no sólo si el juego sigue abierto:
 
 1. Override explícito `BLACKMAMBA_FORCE_MODE`.
-2. Señal BCR `/tmp/blackmamba-game-active`.
-3. Aplicaciones configuradas en `BLACKMAMBA_GAME_APPS`.
-4. Juegos nativos conocidos.
-5. URL activa de Chrome/Safari para Xbox Cloud Gaming, GeForce NOW o Luna.
+2. Aplicaciones configuradas en `BLACKMAMBA_GAME_APPS`.
+3. Juegos nativos conocidos.
+4. URL activa de Chrome/Safari para Xbox Cloud Gaming, GeForce NOW o Luna.
+5. La señal BCR `/tmp/blackmamba-game-active` como confirmación cuando Atlas/Chrome no exponen suficiente contexto.
+
+Así puedes dejar una sesión de juego abierta, cambiar a Finder/YouTube/ChatGPT y el mando vuelve a DESKTOP; al regresar a la superficie de juego vuelve a GAME.
 
 Para agregar un juego que no se detecte por nombre:
 
