@@ -1,76 +1,151 @@
-# controlrojonueo
+# BlackMamba Controller Desktop
 
-BlackMamba Bluetooth Controller convierte un gamepad Bluetooth/USB en una capa de control para macOS y, después, BlackMamba Deck.
+Convierte un Xbox/Bluetooth/USB gamepad en una capa de control real para macOS cuando no estás jugando.
 
-## MVP
+## Comportamiento
 
-- Detecta gamepads Bluetooth/USB con `gilrs`.
-- Traduce botones físicos a acciones canónicas (`DeckAction`).
-- Ejecuta volumen del sistema y controles de Apple Music en macOS.
-- Mantiene entrada y backend desacoplados para conectar después BlackMamba Deck, Spotify, MIDI, ESP32 u otros dispositivos.
+El modo por defecto es **AUTO**:
 
-## Mapeo inicial
+- **GAME**: si BlackMamba Cybernetic Runtime marca una sesión activa, si una app de juego reconocida está al frente, o si Chrome/Safari está en una URL de cloud gaming, se suspende toda inyección de mouse/teclado. El juego recibe el control normalmente.
+- **DESKTOP**: al salir del juego, el mando vuelve automáticamente a controlar macOS.
+- Override manual: `BLACKMAMBA_FORCE_MODE=desktop|game|auto`.
 
-| Control | Acción |
+BCR puede señalar una sesión de juego creando `/tmp/blackmamba-game-active`. La rama de integración en `Blackmvmba88/switch` hace esto automáticamente al entrar a `play/open` y elimina la señal en `close/work`.
+
+## Redundancia USB + Bluetooth
+
+El controlador se trata como una **fuente lógica única** aunque cambie el transporte:
+
+- Si hay USB/cable disponible, se prefiere por estabilidad.
+- Si el cable desaparece, el runtime espera o hace failover al gamepad inalámbrico disponible sin reiniciarse.
+- Si vuelve el cable, puede promoverlo nuevamente a fuente activa.
+- Si macOS expone USB y Bluetooth al mismo tiempo, sólo una fuente queda activa para evitar clics/ejes duplicados.
+- El log imprime nombre, nombre del SO, VID:PID, UUID y transporte inferido para aprender cómo reporta ese Xbox específico en macOS.
+
+La inferencia usa el GUID/UUID compatible con SDL como pista del bus y `PowerInfo` como respaldo. Si el backend no expone suficiente información, se marca como `unknown` en vez de inventar el transporte.
+
+Prueba de handoff:
+
+```text
+1. Inicia cargo run con el mando conectado por cable.
+2. Comprueba la línea ACTIVE -> ... USB/cable.
+3. Desconecta el cable y deja que Bluetooth reconecte.
+4. Debe aparecer FAILOVER -> ... Bluetooth/wireless.
+5. Conecta de nuevo el cable.
+6. Debe aparecer ACTIVE SOURCE -> ... USB/cable.
+```
+
+## Mapeo de escritorio
+
+| Xbox | macOS |
 | --- | --- |
-| South / A / Cross | Play / Pause |
-| East / B / Circle | Siguiente canción |
-| West / X / Square | Canción anterior |
-| D-pad arriba | Volumen +5% |
-| D-pad abajo | Volumen -5% |
-
-Los nombres dependen del layout que reporte el control; el programa imprime el botón detectado para facilitar el remapeo.
+| Stick izquierdo | Cursor con dead-zone + aceleración |
+| Stick derecho | Scroll |
+| A | Clic izquierdo |
+| B | Atrás |
+| X | Play / Pause |
+| Y | Pantalla completa |
+| LB / RB | Pestaña anterior / siguiente |
+| LT / RT | Aplicación anterior / siguiente |
+| D-pad ← / → | Retroceder / adelantar |
+| D-pad ↑ / ↓ | Volumen |
+| L3 | Doble clic |
+| R3 | Clic derecho |
+| View | Mission Control |
+| Menu | Enter |
 
 ## Ejecutar en macOS
-
-1. Empareja el control en **Ajustes del Sistema → Bluetooth**.
-2. Instala Rust si todavía no está disponible.
-3. Clona el repo y cambia a la rama del MVP:
 
 ```bash
 git clone https://github.com/Blackmvmba88/controlrojonueo.git
 cd controlrojonueo
-git switch feat/bluetooth-controller-mvp
+git switch feat/xbox-desktop-control
 cargo run
 ```
 
-Al arrancar verás los controles detectados y el programa quedará escuchando eventos.
+La primera vez, macOS debe permitir al Terminal/app controlar el equipo en **Ajustes del Sistema → Privacidad y seguridad → Accesibilidad**.
 
 ## Arquitectura
 
 ```text
-Bluetooth / USB Gamepad
-        ↓
-      gilrs
-        ↓
-   input::map_button
-        ↓
-     DeckAction
-        ↓
-    MediaBackend
-        ↓
-   MacOsBackend
+Xbox / Bluetooth / USB gamepad
+            ↓
+          gilrs
+            ↓
+     semantic mapping
+      ↙             ↘
+AUTO mode         pointer state
+   ↓                   ↓
+GAME / DESKTOP     dead-zone + curve
+   ↓                   ↓
+pass-through       Enigo/macOS
+                    ↓
+          mouse / keyboard / media
 ```
 
-La regla es que el dispositivo físico genera intención; no modifica directamente el motor de reproducción. Esto permite sustituir `MacOsBackend` por un backend de BlackMamba Deck sin cambiar el código de entrada.
+## Detección AUTO
 
-## Estructura
+AUTO revisa el **contexto al frente**, no sólo si el juego sigue abierto:
+
+1. Override explícito `BLACKMAMBA_FORCE_MODE`.
+2. Aplicaciones configuradas en `BLACKMAMBA_GAME_APPS`.
+3. Juegos nativos conocidos.
+4. URL activa de Chrome/Safari para Xbox Cloud Gaming, GeForce NOW o Luna.
+5. La señal BCR `/tmp/blackmamba-game-active` como confirmación cuando Atlas/Chrome no exponen suficiente contexto.
+
+Así puedes dejar una sesión de juego abierta, cambiar a Finder/YouTube/ChatGPT y el mando vuelve a DESKTOP; al regresar a la superficie de juego vuelve a GAME.
+
+Para agregar un juego que no se detecte por nombre:
+
+```bash
+BLACKMAMBA_GAME_APPS="Nombre de mi juego,Otro juego" cargo run
+```
+
+## Desarrollo y validación
+
+```bash
+cargo check --all-targets
+cargo test --all-targets
+```
+
+GitHub Actions ejecuta ambos comandos en `macos-latest`.
+
+## Dependencias principales
+
+- `gilrs 0.11.2`: gamepad unificado, hotplug y ejes.
+- `enigo 0.6.1`: inyección de mouse y teclado en macOS.
+
+## Objetivo
+
+El gamepad deja de ser un periférico exclusivo de videojuegos. Cuando juegas, es gamepad. Cuando sales del juego, se convierte automáticamente en control remoto del escritorio.
+
+
+## Diagnóstico USB GIP directo
+
+Si macOS/gilrs enumera el Xbox pero no emite ningún evento (`map='<none>'`, `source=Driver`), prueba el lector USB directo:
+
+```bash
+git pull
+cargo build --bin gip_probe
+sudo ./target/debug/gip_probe
+```
+
+El probe está fijado inicialmente al Xbox Series X|S detectado en esta máquina:
 
 ```text
-src/
-├── actions.rs
-├── input.rs
-├── main.rs
-└── backend/
-    ├── mod.rs
-    └── macos.rs
+VID:PID 045e:0b12
 ```
 
-## Siguiente etapa
+La prueba salta `gilrs`, abre el dispositivo con libusb, reclama la interfaz interrupt IN/OUT, envía el paquete GIP de activación y muestra paquetes crudos. Mueve sticks y pulsa A/B/X/Y.
 
-- Perfiles JSON/TOML por control.
-- Wizard de aprendizaje: "presiona el botón para Play/Pause".
-- Tap, hold y double-tap.
-- Combinaciones como `L1 + A` para cues.
-- Backend directo de BlackMamba Deck.
-- Reconexión y selección automática de perfil por GUID.
+Resultado esperado si la ruta USB directa funciona:
+
+```text
+USB device opened ...
+Claimed interface ...
+GIP wake packet sent: 5 bytes
+RAW #00001 ...
+RAW #00002 ...
+```
+
+Si los bytes cambian al mover controles, el siguiente paso es convertir esos paquetes GIP en el mismo `DeckAction`/estado de puntero que ya usa el modo escritorio.
