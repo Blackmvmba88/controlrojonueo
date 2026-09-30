@@ -16,4 +16,7 @@ pub enum DeckAction {
     VolumeDown,
     Enter,
     MissionControl,
+    VisualPrevious,
+    VisualNext,
+    VisualActivate,
 }
