@@ -27,3 +27,29 @@ El build no instala, reinicia ni restablece permisos. Conserva el identificador 
 ## Estado verificado
 
 El código compiló y la app arrancó en macOS 26.3.1. La autorización y las acciones con el control requieren validación en el equipo. No hay una identidad de firma estable configurada en el entorno original.
+
+
+## Doctor (versión 1.1)
+
+El botón **Doctor · revisar y probar control** pausa la inyección y muestra permiso real de Accesibilidad, control/perfil conectado, último evento físico recibido y número de eventos. No permite reactivar el mouse mientras Doctor está abierto. Cierra Doctor y activa el mouse al terminar.
+
+Permite abrir Bluetooth/Accesibilidad, exportar JSON y restablecer **solo** Accesibilidad del bundle actual. Restablecer no concede permiso: macOS requiere volver a habilitar la app. Doctor advierte cuando la firma es temporal; no confunde firma válida con conservación garantizada de permisos.
+
+También puedes obtener una instantánea sin abrir ventanas ni inyectar entrada:
+
+```bash
+./build/ControlGame.app/Contents/MacOS/ControlGame --doctor
+```
+
+Esta instantánea pertenece al proceso que ejecutaste; no inspecciona otra instancia abierta ni prueba los botones. Para verificar eventos físicos utiliza el Doctor dentro de la app. El JSON incluye la ruta local de instalación, pero no texto escrito, títulos de páginas ni URLs.
+
+## Rendimiento y comprobaciones
+
+- Compilación optimizada (`-O`).
+- Bucle del cursor detenido cuando el control del escritorio está pausado.
+- Pantallas actualizadas por notificación, en lugar de enumerarlas al mover el cursor.
+- Contexto de video consultado en segundo plano; los resultados caducados se descartan al cambiar de app/estado. Las acciones deliberadas vuelven a comprobar el contexto.
+- Permiso supervisado y liberación de teclas/botones al pausar, desconectar o salir.
+- Preferencias de velocidad y modos guardadas entre sesiones.
+
+Ejecuta `./test.sh` para comprobar zona muerta, aceleración, pantallas múltiples, huecos entre pantallas y selección direccional sin retorno al borde. CI ejecuta estas pruebas, compila la app y valida el JSON del Doctor. Estas pruebas no sustituyen pruebas físicas del control ni validan todos los navegadores/reproductores.

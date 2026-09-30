@@ -6,19 +6,6 @@ struct SpatialCandidate {
     let frame: CGRect
 }
 
-func directionalTarget(frames: [CGRect], origin: CGPoint, dx: Double, dy: Double) -> Int? {
-    var best: (Int, Double)?
-    for (index, frame) in frames.enumerated() {
-        let x = frame.midX - origin.x, y = frame.midY - origin.y
-        let forward = x * dx + y * dy
-        guard forward > 4 else { continue }
-        let sideways = abs(x * dy - y * dx)
-        let score = hypot(x, y) + sideways * 1.5
-        if best == nil || score < best!.1 { best = (index, score) }
-    }
-    return best?.0
-}
-
 final class SpatialNavigator {
     private var selected: SpatialCandidate?
     private var selectedPID: pid_t?
@@ -90,6 +77,7 @@ final class SpatialNavigator {
         guard let window = element(attribute(application, kAXFocusedWindowAttribute)) else { clear(); return "Esta app no expone una ventana navegable" }
         var queue = [window], visited: [AXUIElement] = [], candidates: [SpatialCandidate] = []
         let start = ProcessInfo.processInfo.systemUptime
+        let windowBounds = frame(window)
         let roles: Set<String> = [kAXButtonRole, kAXTextFieldRole, kAXTextAreaRole, kAXCheckBoxRole, kAXRadioButtonRole, kAXPopUpButtonRole, kAXComboBoxRole, kAXSliderRole, "AXLink", kAXRowRole, kAXCellRole, kAXImageRole, kAXMenuItemRole]
         // Include window chrome even if it is absent from the ordinary children list.
         for name in [kAXCloseButtonAttribute, kAXMinimizeButtonAttribute, kAXZoomButtonAttribute] {
@@ -102,7 +90,7 @@ final class SpatialNavigator {
             visited.append(item)
             let role = attribute(item, kAXRoleAttribute) as? String ?? ""
             let enabled = attribute(item, kAXEnabledAttribute) as? Bool ?? true
-            if enabled, roles.contains(role), let rect = frame(item), let bounds = frame(window), bounds.intersects(rect) {
+            if enabled, roles.contains(role), let rect = frame(item), let bounds = windowBounds, bounds.intersects(rect) {
                 candidates.append(SpatialCandidate(element: item, frame: rect.intersection(bounds)))
             }
             if let children = attribute(item, kAXChildrenAttribute) as? [AXUIElement] { queue.append(contentsOf: children) }

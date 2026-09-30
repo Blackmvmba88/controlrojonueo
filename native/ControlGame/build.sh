@@ -16,7 +16,7 @@ trap 'rm -rf "$staging"' EXIT
 app="$staging/ControlGame.app"
 mkdir -p "$app/Contents/MacOS"
 cp "$project_dir/Info.plist" "$app/Contents/Info.plist"
-xcrun swiftc "$project_dir/main.swift" "$project_dir/SpatialNavigation.swift" -o "$app/Contents/MacOS/ControlGame" -framework Cocoa -framework GameController -framework ApplicationServices
+xcrun swiftc -O "$project_dir/main.swift" "$project_dir/SpatialNavigation.swift" "$project_dir/RuntimeMath.swift" "$project_dir/Doctor.swift" -o "$app/Contents/MacOS/ControlGame" -framework Cocoa -framework GameController -framework ApplicationServices
 plutil -lint "$app/Contents/Info.plist"
 codesign --force --sign "$identity" "$app"
 codesign --verify --strict "$app"
