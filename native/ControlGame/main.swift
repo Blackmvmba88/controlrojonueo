@@ -3,6 +3,15 @@ import GameController
 import ApplicationServices
 
 final class App: NSObject, NSApplicationDelegate {
+    let assistedNavigation = NSButton(checkboxWithTitle: "Selección asistida (tarjetas, campos y botones)", target: nil, action: nil)
+    let videoMode = NSButton(checkboxWithTitle: "Forzar modo video (YouTube se detecta automáticamente)", target: nil, action: nil)
+    var youtubeVideo = false
+    var editingText = false
+    var contextPID: pid_t?
+    var lastContextCheck: Double = 0
+    var lastSeek: Double = 0
+    let navigator = SpatialNavigator()
+    let navigationStatus = NSTextField(labelWithString: "Cruz: flechas de la app · A: clic")
     var window: NSWindow!
     let status = NSTextField(labelWithString: "")
     let toggle = NSButton(title: "Activar mouse", target: nil, action: nil)
@@ -16,7 +25,7 @@ final class App: NSObject, NSApplicationDelegate {
     var last = ProcessInfo.processInfo.systemUptime
     var scrollRemainder: Double = 0
     func applicationDidFinishLaunching(_ notification: Notification) {
-        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 420), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+        window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 550), styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         window.title = "ControlGame · Xbox como mouse"
         let stack = NSStackView()
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 16
@@ -31,11 +40,14 @@ final class App: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(bluetooth)
         stack.addArrangedSubview(NSButton(title: "Autorizar Accesibilidad", target: self, action: #selector(authorize)))
         stack.addArrangedSubview(status)
+        stack.addArrangedSubview(videoMode)
+        stack.addArrangedSubview(assistedNavigation)
+        stack.addArrangedSubview(navigationStatus)
         toggle.target = self; toggle.action = #selector(changeActive)
         stack.addArrangedSubview(toggle)
         stack.addArrangedSubview(NSTextField(labelWithString: "Velocidad del cursor"))
         stack.addArrangedSubview(speed)
-        stack.addArrangedSubview(NSTextField(wrappingLabelWithString: "Stick izquierdo: cursor · Stick derecho: scroll\nA: clic y arrastrar · B: clic derecho · X: Enter · Y: Escape\nRT: ⌘ Tab · LT: ⌘ Shift Tab\nMenú (☰): pausar o reanudar"))
+        stack.addArrangedSubview(NSTextField(wrappingLabelWithString: "Stick izquierdo: cursor · Stick derecho: scroll\nA: clic y arrastrar · B: clic derecho · X: Enter · Y: Escape\nRT/LT: cambiar app · En video: adelantar/retroceder\nMenú (☰): pausar o reanudar"))
         NotificationCenter.default.addObserver(self, selector: #selector(scan), name: .GCControllerDidConnect, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(scan), name: .GCControllerDidDisconnect, object: nil)
         GCController.shouldMonitorBackgroundEvents = true
@@ -44,6 +56,7 @@ final class App: NSObject, NSApplicationDelegate {
         window.center(); window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+    func applicationDidBecomeActive(_ notification: Notification) { refresh() }
     @objc func openBluetooth() { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!) }
     @objc func authorize() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
@@ -67,12 +80,14 @@ final class App: NSObject, NSApplicationDelegate {
         pad?.buttonA.pressedChangedHandler = nil; pad?.buttonB.pressedChangedHandler = nil
         pad?.buttonX.pressedChangedHandler = nil; pad?.buttonY.pressedChangedHandler = nil
         pad?.buttonMenu.pressedChangedHandler = nil
+        pad?.dpad.up.pressedChangedHandler = nil; pad?.dpad.down.pressedChangedHandler = nil
+        pad?.dpad.left.pressedChangedHandler = nil; pad?.dpad.right.pressedChangedHandler = nil
         pad?.rightTrigger.pressedChangedHandler = nil
         pad?.leftTrigger.pressedChangedHandler = nil
         controller = next; pad = next?.extendedGamepad
         next?.handlerQueue = .main
         pad?.buttonA.pressedChangedHandler = { [weak self] _, _, pressed in self?.button(.left, pressed) }
-        pad?.buttonB.pressedChangedHandler = { [weak self] _, _, pressed in self?.button(.right, pressed) }
+        pad?.buttonB.pressedChangedHandler = { [weak self] _, _, pressed in self?.backButton(pressed) }
         pad?.buttonX.pressedChangedHandler = { [weak self] _, _, pressed in self?.key(36, pressed) }
         pad?.buttonY.pressedChangedHandler = { [weak self] _, _, pressed in self?.key(53, pressed) }
         pad?.buttonMenu.pressedChangedHandler = { [weak self] _, _, pressed in if pressed { self?.changeActive() } }
@@ -82,9 +97,56 @@ final class App: NSObject, NSApplicationDelegate {
         pad?.leftTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
             self?.switchApplication(backward: true, pressed: pressed)
         }
+        pad?.dpad.up.pressedChangedHandler = { [weak self] _, _, pressed in if pressed { self?.navigate(dx: 0, dy: -1) } }
+        pad?.dpad.down.pressedChangedHandler = { [weak self] _, _, pressed in if pressed { self?.navigate(dx: 0, dy: 1) } }
+        pad?.dpad.left.pressedChangedHandler = { [weak self] _, _, pressed in if pressed { self?.navigate(dx: -1, dy: 0) } }
+        pad?.dpad.right.pressedChangedHandler = { [weak self] _, _, pressed in if pressed { self?.navigate(dx: 1, dy: 0) } }
         refresh()
     }
+    func navigate(dx: Double, dy: Double) {
+        guard enabled, AXIsProcessTrusted(), !switchingApplications, !heldLeft, !heldRight else { return }
+        if assistedNavigation.state == .on {
+            navigationStatus.stringValue = navigator.move(dx: dx, dy: dy)
+        } else {
+            navigator.clear()
+            let code: CGKeyCode = dx < 0 ? 123 : (dx > 0 ? 124 : (dy < 0 ? 126 : 125))
+            key(code, true); key(code, false)
+            navigationStatus.stringValue = "Cruz: flechas normales · X: Enter"
+        }
+    }
+    func updateVideoContext(force: Bool = false) {
+        let now = ProcessInfo.processInfo.systemUptime
+        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        guard force || pid != contextPID || now - lastContextCheck > 1 else { return }
+        let context = navigator.videoContext()
+        youtubeVideo = context.youtube; editingText = context.editing
+        contextPID = pid; lastContextCheck = now
+    }
+    var isVideo: Bool { !editingText && (youtubeVideo || videoMode.state == .on) }
+    func backButton(_ pressed: Bool) {
+        if !pressed { if heldRight { button(.right, false) }; return }
+        updateVideoContext(force: true)
+        if isVideo {
+            if youtubeVideo && navigator.exitYouTubeTheater() {
+                navigationStatus.stringValue = "Video: salir del modo cine"
+            } else {
+                key(53, true); key(53, false)
+                navigationStatus.stringValue = "Video: Escape para salir de pantalla completa"
+            }
+        } else { button(.right, true) }
+    }
+    func seekVideo(backward: Bool) {
+        updateVideoContext(force: true)
+        guard enabled, AXIsProcessTrusted(), isVideo else { return }
+        let code: CGKeyCode = backward ? 123 : 124
+        key(code, true); key(code, false)
+        navigationStatus.stringValue = backward ? "Video: retroceder" : "Video: adelantar"
+    }
     func switchApplication(backward: Bool, pressed: Bool) {
+        if pressed && !switchingApplications {
+            updateVideoContext(force: true)
+            if isVideo { seekVideo(backward: backward); return }
+        }
         if !pressed {
             if pad?.leftTrigger.isPressed != true && pad?.rightTrigger.isPressed != true {
                 finishApplicationSwitch()
@@ -92,6 +154,7 @@ final class App: NSObject, NSApplicationDelegate {
             return
         }
         guard enabled, AXIsProcessTrusted(), !heldLeft, !heldRight else { return }
+        navigator.clear()
         if !switchingApplications {
             switchingApplications = true
             postKey(55, down: true, flags: .maskCommand)
@@ -125,6 +188,7 @@ final class App: NSObject, NSApplicationDelegate {
         CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: pressed)?.post(tap: .cghidEventTap)
     }
     func stop() {
+        navigator.clear()
         finishApplicationSwitch()
         if let point = CGEvent(source: nil)?.location {
             if heldLeft { mouse(.leftMouseUp, .left, point) }
@@ -143,9 +207,16 @@ final class App: NSObject, NSApplicationDelegate {
         let dt = min(now - last, 0.05); last = now
         guard enabled else { return }
         guard AXIsProcessTrusted(), let pad = pad else { stop(); refresh(); return }
+        updateVideoContext()
+        let seekAxis = pad.rightThumbstick.xAxis.value
+        if isVideo && abs(seekAxis) > 0.55 && now - lastSeek > 0.35 {
+            lastSeek = now
+            seekVideo(backward: seekAxis < 0)
+        }
         let dx = axis(pad.leftThumbstick.xAxis.value) * speed.doubleValue * dt
         let dy = -axis(pad.leftThumbstick.yAxis.value) * speed.doubleValue * dt
         if (dx != 0 || dy != 0), var point = CGEvent(source: nil)?.location {
+            navigator.clear()
             point.x += dx; point.y += dy
             var count: UInt32 = 0
             var displays = [CGDirectDisplayID](repeating: 0, count: 32)

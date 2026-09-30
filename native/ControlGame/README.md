@@ -7,6 +7,12 @@ App Swift local para usar un control Xbox Series X/S como mouse. Detecta la vers
 - X: Enter; Y: Escape.
 - RT: ⌘ Tab; LT: ⌘ Shift Tab. Mantén un gatillo para mostrar el selector de macOS; suelta ambos para entrar a la aplicación seleccionada. Con RT sostenido, pulsa LT para retroceder en el selector.
 - Menú: activar o pausar.
+- Cruz: flechas normales por defecto; X confirma con Enter.
+- B en video: activa el botón de salida del modo cine de YouTube si se reconoce; de lo contrario envía Escape para salir de pantalla completa. Fuera de video conserva clic derecho.
+- Video: en páginas de reproducción de YouTube detectables por Accesibilidad, RT/LT y la palanca derecha horizontal envían flecha derecha/izquierda para adelantar/retroceder. Fuera de video, RT/LT conservan el selector de apps. Hay un interruptor manual para otros reproductores. Los campos de texto accesibles bloquean este modo para evitar mover el cursor de edición. La reproducción y el efecto de las flechas dependen del foco y de los atajos del reproductor; abrir una página de video no demuestra que esté reproduciéndose.
+- Selección asistida opcional: busca elementos accesibles de la ventana en la dirección pulsada, incluidos enlaces, imágenes, campos y controles de ventana. Muestra un marco amarillo y coloca el cursor para pulsar con A. No vuelve al principio al llegar al borde ni activa elementos automáticamente. El stick recupera el cursor libre.
+
+La selección asistida depende de los elementos que cada app/sitio expone a Accesibilidad. No reconoce imágenes por visión ni garantiza encontrar todas las tarjetas de YouTube. Una ventana con una jerarquía grande puede exponer solo una parte de los elementos dentro del límite de exploración.
 
 Esta app es independiente del runtime Rust de la raíz; tiene otro mapeo y no incluye detección automática de juegos ni el lector USB GIP.
 
