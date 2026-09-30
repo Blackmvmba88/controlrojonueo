@@ -22,3 +22,19 @@ jobs:
 
       - name: Unit tests
         run: cargo test --all-targets
+
+  native-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Native runtime tests
+        run: native/ControlGame/test.sh
+      - name: Build native app for validation
+        env:
+          CONTROLGAME_ALLOW_ADHOC: '1'
+        run: native/ControlGame/build.sh
+      - name: Verify Doctor JSON
+        run: |
+          native/ControlGame/build/ControlGame.app/Contents/MacOS/ControlGame --doctor > /tmp/controlgame-doctor.json
+          python3 -c 'import json; d=json.load(open("/tmp/controlgame-doctor.json")); assert d["active"] is False; assert d["adHocSignature"] is True'
