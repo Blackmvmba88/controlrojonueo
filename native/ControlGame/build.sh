@@ -14,7 +14,13 @@ mkdir -p "$project_dir/build"
 staging="$(mktemp -d "$project_dir/build/candidate.XXXXXX")"
 trap 'rm -rf "$staging"' EXIT
 app="$staging/ControlGame.app"
-mkdir -p "$app/Contents/MacOS"
+mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources" "$staging/ControlGame.iconset"
+for size in 16 32 128 256 512; do
+  sips -z "$size" "$size" "$project_dir/assets/ControlGame.png" --out "$staging/ControlGame.iconset/icon_${size}x${size}.png" >/dev/null
+  double=$((size * 2))
+  sips -z "$double" "$double" "$project_dir/assets/ControlGame.png" --out "$staging/ControlGame.iconset/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$staging/ControlGame.iconset" -o "$app/Contents/Resources/ControlGame.icns"
 cp "$project_dir/Info.plist" "$app/Contents/Info.plist"
 xcrun swiftc -O "$project_dir/main.swift" "$project_dir/SpatialNavigation.swift" "$project_dir/RuntimeMath.swift" "$project_dir/Doctor.swift" -o "$app/Contents/MacOS/ControlGame" -framework Cocoa -framework GameController -framework ApplicationServices
 plutil -lint "$app/Contents/Info.plist"
