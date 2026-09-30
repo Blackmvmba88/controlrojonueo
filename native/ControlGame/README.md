@@ -5,7 +5,7 @@ App Swift local para usar un control Xbox Series X/S como mouse. Detecta la vers
 - Stick izquierdo: cursor; stick derecho: desplazamiento.
 - A: clic izquierdo y arrastre; B: clic derecho.
 - X: Enter; Y: Escape.
-- RT/LT: siguiente/anterior aplicación abierta en orden alfabético.
+- RT: ⌘ Tab; LT: ⌘ Shift Tab. Mantén un gatillo para mostrar el selector de macOS; suelta ambos para entrar a la aplicación seleccionada. Con RT sostenido, pulsa LT para retroceder en el selector.
 - Menú: activar o pausar.
 
 Esta app es independiente del runtime Rust de la raíz; tiene otro mapeo y no incluye detección automática de juegos ni el lector USB GIP.

@@ -10,6 +10,7 @@ final class App: NSObject, NSApplicationDelegate {
     var enabled = false
     var pad: GCExtendedGamepad?
     var controller: GCController?
+    var switchingApplications = false
     var heldLeft = false
     var heldRight = false
     var last = ProcessInfo.processInfo.systemUptime
@@ -34,7 +35,7 @@ final class App: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(toggle)
         stack.addArrangedSubview(NSTextField(labelWithString: "Velocidad del cursor"))
         stack.addArrangedSubview(speed)
-        stack.addArrangedSubview(NSTextField(wrappingLabelWithString: "Stick izquierdo: cursor · Stick derecho: scroll\nA: clic y arrastrar · B: clic derecho · X: Enter · Y: Escape\nRT: siguiente app · LT: app anterior\nMenú (☰): pausar o reanudar"))
+        stack.addArrangedSubview(NSTextField(wrappingLabelWithString: "Stick izquierdo: cursor · Stick derecho: scroll\nA: clic y arrastrar · B: clic derecho · X: Enter · Y: Escape\nRT: ⌘ Tab · LT: ⌘ Shift Tab\nMenú (☰): pausar o reanudar"))
         NotificationCenter.default.addObserver(self, selector: #selector(scan), name: .GCControllerDidConnect, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(scan), name: .GCControllerDidDisconnect, object: nil)
         GCController.shouldMonitorBackgroundEvents = true
@@ -76,29 +77,40 @@ final class App: NSObject, NSApplicationDelegate {
         pad?.buttonY.pressedChangedHandler = { [weak self] _, _, pressed in self?.key(53, pressed) }
         pad?.buttonMenu.pressedChangedHandler = { [weak self] _, _, pressed in if pressed { self?.changeActive() } }
         pad?.rightTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
-            if pressed { self?.switchApplication(direction: 1) }
+            self?.switchApplication(backward: false, pressed: pressed)
         }
         pad?.leftTrigger.pressedChangedHandler = { [weak self] _, _, pressed in
-            if pressed { self?.switchApplication(direction: -1) }
+            self?.switchApplication(backward: true, pressed: pressed)
         }
         refresh()
     }
-    func switchApplication(direction: Int) {
-        guard enabled, AXIsProcessTrusted(), !heldLeft, !heldRight else { return }
-        // A stable order allows repeated trigger presses to traverse every open app.
-        let apps = NSWorkspace.shared.runningApplications.filter {
-            $0.activationPolicy == .regular && !$0.isTerminated
-        }.sorted {
-            let a = $0.localizedName ?? ""
-            let b = $1.localizedName ?? ""
-            if a == b { return $0.processIdentifier < $1.processIdentifier }
-            return a.localizedStandardCompare(b) == .orderedAscending
+    func switchApplication(backward: Bool, pressed: Bool) {
+        if !pressed {
+            if pad?.leftTrigger.isPressed != true && pad?.rightTrigger.isPressed != true {
+                finishApplicationSwitch()
+            }
+            return
         }
-        guard apps.count > 1,
-              let current = NSWorkspace.shared.frontmostApplication,
-              let index = apps.firstIndex(where: { $0.processIdentifier == current.processIdentifier }) else { return }
-        let next = (index + direction + apps.count) % apps.count
-        apps[next].activate(options: [])
+        guard enabled, AXIsProcessTrusted(), !heldLeft, !heldRight else { return }
+        if !switchingApplications {
+            switchingApplications = true
+            postKey(55, down: true, flags: .maskCommand)
+        }
+        if backward { postKey(56, down: true, flags: [.maskCommand, .maskShift]) }
+        let flags: CGEventFlags = backward ? [.maskCommand, .maskShift] : .maskCommand
+        postKey(48, down: true, flags: flags)
+        postKey(48, down: false, flags: flags)
+        if backward { postKey(56, down: false, flags: .maskCommand) }
+    }
+    func postKey(_ code: CGKeyCode, down: Bool, flags: CGEventFlags) {
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down)
+        event?.flags = flags
+        event?.post(tap: .cghidEventTap)
+    }
+    func finishApplicationSwitch() {
+        guard switchingApplications else { return }
+        postKey(55, down: false, flags: [])
+        switchingApplications = false
     }
     func mouse(_ type: CGEventType, _ button: CGMouseButton, _ point: CGPoint) {
         CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: button)?.post(tap: .cghidEventTap)
@@ -113,6 +125,7 @@ final class App: NSObject, NSApplicationDelegate {
         CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: pressed)?.post(tap: .cghidEventTap)
     }
     func stop() {
+        finishApplicationSwitch()
         if let point = CGEvent(source: nil)?.location {
             if heldLeft { mouse(.leftMouseUp, .left, point) }
             if heldRight { mouse(.rightMouseUp, .right, point) }
