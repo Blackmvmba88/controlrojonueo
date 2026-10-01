@@ -149,3 +149,20 @@ RAW #00002 ...
 ```
 
 Si los bytes cambian al mover controles, el siguiente paso es convertir esos paquetes GIP en el mismo `DeckAction`/estado de puntero que ya usa el modo escritorio.
+
+
+## Spatial HUD — navegación visual
+
+La rama `feat/spatial-hud-navigation` añade el primer núcleo de una interfaz tipo realidad aumentada para escritorio.
+
+En vez de asignar cada botón a una acción fija como “siguiente video”, el control puede entrar en **Spatial HUD**:
+
+- botón Xbox/Mode: activa o desactiva Spatial HUD;
+- flick del stick derecho a la derecha: siguiente objetivo visual;
+- flick a la izquierda: objetivo anterior;
+- A: activa el objetivo seleccionado;
+- B: sale del modo.
+
+Por ahora el backend universal usa el foco de macOS (Tab / Shift+Tab / Return). La arquitectura está separada para que el siguiente paso sea dibujar un overlay real con miniaturas, ventanas, herramientas y tarjetas seleccionables sin cambiar el modelo de entrada.
+
+Documento de diseño: [docs/SPATIAL_HUD.md](docs/SPATIAL_HUD.md).
