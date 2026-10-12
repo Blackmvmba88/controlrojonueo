@@ -38,3 +38,11 @@ jobs:
         run: |
           native/ControlGame/build/ControlGame.app/Contents/MacOS/ControlGame --doctor > /tmp/controlgame-doctor.json
           python3 -c 'import json; d=json.load(open("/tmp/controlgame-doctor.json")); assert d["active"] is False; assert d["adHocSignature"] is True'
+
+      - name: Typecheck ControlGame dashboard
+        run: swiftc -typecheck macos/main.swift macos/Dashboard.swift macos/CardNavigator.swift -framework AppKit -framework GameController -framework ApplicationServices
+
+      - name: Test card navigation
+        run: |
+          swiftc macos/CardNavigator.swift macos/tests/main.swift -framework AppKit -framework ApplicationServices -o /tmp/controlgame-card-tests
+          /tmp/controlgame-card-tests

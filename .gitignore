@@ -2,3 +2,13 @@
 .DS_Store
 
 /native/ControlGame/build/
+
+# Native build artifacts and private local configuration
+build/
+recovery/
+.venv/
+__pycache__/
+.env
+.env.*
+*.key
+*.p12
