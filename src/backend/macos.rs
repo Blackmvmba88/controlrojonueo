@@ -86,6 +86,9 @@ impl DesktopBackend for MacOsBackend {
             DeckAction::VolumeDown => self.key(Key::VolumeDown),
             DeckAction::Enter => self.key(Key::Return),
             DeckAction::MissionControl => self.combo(&[Key::Control], Key::UpArrow),
+            DeckAction::VisualPrevious => self.combo(&[Key::Shift], Key::Tab),
+            DeckAction::VisualNext => self.key(Key::Tab),
+            DeckAction::VisualActivate => self.key(Key::Return),
         }
     }
 
