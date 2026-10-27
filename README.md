@@ -1,5 +1,19 @@
 # BlackMamba Controller Desktop
 
+## App nativa ControlGame 1.3
+
+La app para macOS vive en `macos/` y se construye con `python3 macos/build.py`. Tiene catálogo de acciones por categorías, búsqueda, asignación de botones y guardado automático. Recibe el mando también en segundo plano; cerrar la ventana conserva el proceso en la barra de menú. El runtime Rust descrito más abajo es una implementación independiente.
+
+**Navegar por tarjetas** permite recorrer enlaces de videos y Shorts de YouTube con la cruceta, abrir la selección con A y volver con B. Usa Accesibilidad de macOS para encontrar los enlaces y un borde cian que no toma el foco. Si el navegador expone sólo el título clicable, se marca ese título. Las asignaciones normales se mantienen en otras páginas; desactivar el modo recupera tus botones en YouTube. Los sticks siguen controlando mouse y scroll.
+
+Pruebas de selección espacial:
+
+```bash
+swiftc macos/CardNavigator.swift macos/tests/main.swift -framework AppKit -framework ApplicationServices -o /tmp/controlgame-card-tests
+/tmp/controlgame-card-tests
+```
+
+
 Convierte un Xbox/Bluetooth/USB gamepad en una capa de control real para macOS cuando no estás jugando.
 
 ## Comportamiento
